@@ -19,7 +19,7 @@ ACCOUNT_EMAIL = os.getenv('ACCOUNT_EMAIL')
 AUTHORITY = 'https://login.microsoftonline.com/common'
 SCOPES = ['Mail.Read']
 TOKEN_CACHE_FILE = 'token_cache.json'
-ATTACHMENTS_DIR = 'attachments' 
+ATTACHMENTS_DIR = 'Data/attachments' 
 
 def load_token_cache():
     cache = SerializableTokenCache()

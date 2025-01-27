@@ -2,4 +2,9 @@
 venv/
 *.log
 *.json
-attachments
+Data/*
+run_email.fetch.sh
+.DS_Store
+Json2Excel_Microservice_Updated
+__pycache__/
+run_email_fetch.sh

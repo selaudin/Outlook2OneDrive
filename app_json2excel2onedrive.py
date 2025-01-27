@@ -4,10 +4,10 @@ from msal import PublicClientApplication, SerializableTokenCache
 import logging
 from dotenv import load_dotenv
 load_dotenv()
-
+from Json2Excel.main import process_invoice
 
 logging.basicConfig(
-    filename='email_fetch.log',
+    filename='email_fetch_upload.log',
     level=logging.INFO,
     format='%(asctime)s %(levelname)s:%(message)s'
 )
@@ -19,8 +19,8 @@ ACCOUNT_EMAIL = os.getenv('ACCOUNT_EMAIL')
 AUTHORITY = 'https://login.microsoftonline.com/common'
 SCOPES = ['Mail.Read', 'Files.ReadWrite']
 TOKEN_CACHE_FILE = 'token_cache.json'
-ATTACHMENTS_DIR = 'attachments' 
-ONEDRIVE_DEST_FOLDER = '/Attachments'  # OneDrive folder path
+ATTACHMENTS_DIR = 'Data/attachments' 
+ONEDRIVE_DEST_FOLDER = '/Invoices'  # OneDrive folder path
 
 def load_token_cache():
     cache = SerializableTokenCache()
@@ -67,7 +67,7 @@ def get_access_token():
         logger.error(f"Failed to get access token: {result.get('error_description')}")
         raise Exception(f"Failed to get access token: {result.get('error_description')}")
 
-def upload_to_onedrive(access_token, file_path, file_name, destination_folder=ONEDRIVE_DEST_FOLDER):
+def upload_to_onedrive(access_token, file_path, destination_file_name, destination_folder=ONEDRIVE_DEST_FOLDER):
     """
     Uploads a file to OneDrive.
 
@@ -83,7 +83,7 @@ def upload_to_onedrive(access_token, file_path, file_name, destination_folder=ON
 
     # files sizes (<4MB)
     destination_folder = destination_folder.replace(' ', '%20')
-    upload_url = f'https://graph.microsoft.com/v1.0/me/drive/root:{destination_folder}/{file_name}:/content'
+    upload_url = f'https://graph.microsoft.com/v1.0/me/drive/root:{destination_folder}/{destination_file_name}:/content'
 
     # Read the file content
     with open(file_path, 'rb') as f:
@@ -93,9 +93,9 @@ def upload_to_onedrive(access_token, file_path, file_name, destination_folder=ON
     response = requests.put(upload_url, headers=headers, data=file_content)
 
     if response.status_code in [200, 201]:
-        logger.info(f"Successfully uploaded {file_name} to OneDrive at {destination_folder}.")
+        logger.info(f"Successfully uploaded {destination_file_name} to OneDrive at {destination_folder}.")
     else:
-        logger.error(f"Failed to upload {file_name} to OneDrive: {response.status_code} - {response.text}")
+        logger.error(f"Failed to upload {destination_file_name} to OneDrive: {response.status_code} - {response.text}")
 
 def upload_large_file_to_onedrive(access_token, file_path, file_name, destination_folder=ONEDRIVE_DEST_FOLDER):
     """
@@ -153,59 +153,31 @@ def upload_large_file_to_onedrive(access_token, file_path, file_name, destinatio
 
     logger.info(f"Finished uploading {file_name} to OneDrive.")
 
-def fetch_emails():
-    try:
-        access_token = get_access_token()
-        headers = {'Authorization': f'Bearer {access_token}'}
-        endpoint = 'https://graph.microsoft.com/v1.0/me/messages?$top=10&$orderby=receivedDateTime desc&$expand=attachments'
-
-        response = requests.get(endpoint, headers=headers)
-        if response.status_code == 200:
-            emails = response.json()
-            for email in emails.get('value', []):
-                subject = email.get('subject', '(No Subject)')
-                sender = email.get('from', {}).get('emailAddress', {}).get('address', '(Unknown Sender)')
-                logger.info(f"From: {sender}, Subject: {subject}")
-
-                attachments = email.get('attachments', [])
-                if attachments:
-                    logger.info(f"Found {len(attachments)} attachment(s). Downloading and uploading to OneDrive...")
-                    for attachment in attachments:
-                        if attachment['@odata.type'] == '#microsoft.graph.fileAttachment':
-                            attachment_name = attachment['name']
-                            attachment_id = attachment['id']
-                            download_endpoint = f"https://graph.microsoft.com/v1.0/me/messages/{email['id']}/attachments/{attachment_id}/$value"
-                            download_response = requests.get(download_endpoint, headers=headers)
-                            
-                            if download_response.status_code == 200:
-                                # Save attachment locally
-                                os.makedirs(ATTACHMENTS_DIR, exist_ok=True)
-                                safe_attachment_name = os.path.basename(attachment_name)
-                                file_path = os.path.join(ATTACHMENTS_DIR, safe_attachment_name)
-                                with open(file_path, 'wb') as f:
-                                    f.write(download_response.content)
-                                logger.info(f"Downloaded attachment: {safe_attachment_name}")
-
-                                # Determine if the file is large and choose upload method
-                                file_size = os.path.getsize(file_path)
-                                if file_size < 4 * 1024 * 1024:  # <4MB
-                                    upload_to_onedrive(access_token, file_path, safe_attachment_name)
-                                else:
-                                    upload_large_file_to_onedrive(access_token, file_path, safe_attachment_name)
-                            else:
-                                logger.error(f"Failed to download attachment {attachment_name}: {download_response.status_code} - {download_response.text}")
-                        elif attachment['@odata.type'] == '#microsoft.graph.itemAttachment':
-                            logger.warning("Item attachments are not handled in this script.")
-                        else:
-                            logger.warning(f"Unknown attachment type: {attachment['@odata.type']}")
+def upload_json2onedrive(json_filename=None, excel_filename=None, company_name=None, directory=None):
+    # full_path_json  = os.path.join('Data/InvoiceData/', json_filename)
+    # if process_invoice(full_path_json, full_path_excel):
+    #     access_token = get_access_token()
+    #     upload_to_onedrive(access_token, full_path_json, json_filename, destination_folder="/InvoiceData")
+    #     upload_to_onedrive(access_token, full_path_excel, excel_filename, destination_folder="/Summaries")
+    #     print("Files uploaded successfully.")
+    # else:
+    #     print("Invoice processing failed.")
+    if directory:
+        for file in os.listdir(directory):
+            if file.endswith('.json'):
+                file_name = file.split('.')[0]
+                full_path = os.path.join(directory, file)
+                excel_filename = file_name + '.xlsx'
+                full_path_excel = os.path.join('Data/Summaries/', excel_filename)
+                if process_invoice(full_path, full_path_excel):
+                    access_token = get_access_token()
+                    upload_to_onedrive(access_token=access_token, file_path=full_path, destination_file_name=file, destination_folder="/Invoices/InvoiceData")
+                    upload_to_onedrive(access_token=access_token, file_path=full_path_excel, destination_file_name=excel_filename, destination_folder="/Invoices/Summaries")
+                    print(f"Uploaded {file} to OneDrive.")
                 else:
-                    logger.info("No attachments found in this email.")
-                logger.info("-" * 50)
-        else:
-            logger.error(f"Failed to fetch emails: {response.status_code} - {response.text}")
-
-    except Exception as e:
-        logger.error(f"An error occurred: {e}")
+                    print(f"Processing failed for {file}.")
 
 if __name__ == "__main__":
-    fetch_emails()
+    # Example usage:
+    # upload_json2onedrive('PSI Concepts SA.json', 'invoice_data.xlsx', 'Aevux')
+    upload_json2onedrive(directory='Data/InvoiceData/')
