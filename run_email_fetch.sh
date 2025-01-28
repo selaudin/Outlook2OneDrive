@@ -1,3 +1,5 @@
 #!/bin/bash
-source /path/to/your_virtual_python_environment
-python3 /path/to/this_script.py >> /path/to/email_fetch.log 2>&1
+source /Users/mdpi/Personal/Projects/OutlookConnect/venv/bin/activate
+/Users/mdpi/Personal/Projects/OutlookConnect/venv/bin/python3 /Users/mdpi/Personal/Projects/OutlookConnect/app_outlook2pdf2onedrive.py
+/Users/mdpi/Personal/Projects/OutlookConnect/venv/bin/python3 /Users/mdpi/Personal/Projects/OutlookConnect/app_pdf2json.py
+/Users/mdpi/Personal/Projects/OutlookConnect/venv/bin/python3 /Users/mdpi/Personal/Projects/OutlookConnect/app_json2excel2onedrive.py

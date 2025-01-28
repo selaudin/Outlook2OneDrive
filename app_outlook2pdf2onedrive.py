@@ -157,7 +157,7 @@ def fetch_emails():
     try:
         access_token = get_access_token()
         headers = {'Authorization': f'Bearer {access_token}'}
-        endpoint = 'https://graph.microsoft.com/v1.0/me/messages?$top=10&$orderby=receivedDateTime desc&$expand=attachments'
+        endpoint = 'https://graph.microsoft.com/v1.0/me/messages?$top=1&$orderby=receivedDateTime desc&$expand=attachments'
 
         response = requests.get(endpoint, headers=headers)
         if response.status_code == 200:

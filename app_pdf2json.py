@@ -12,8 +12,11 @@ model = AutoModelForImageTextToText.from_pretrained("Qwen/Qwen2-VL-2B-Instruct")
 
 if torch.cuda.is_available():
     model = model.to("cuda")
+    print("Model moved to GPU")
 else:
     model = model.to("cpu")
+    print("Model moved to CPU")
+
 
 def pdf2json(file_path):
     file_name = file_path
@@ -30,7 +33,7 @@ def pdf2json(file_path):
                 },
                 {
                     "type": "text",
-                    "text": "Retrieve company name (output it as 'client'), date(convert the format in DDMMYYYY), vat, brutto, net, currency. Response must be in JSON format."
+                    "text": "Retrieve invoice_number, date_of_issue, seller_info, client_info, invoice_items_table, currency. Response must be in JSON format"
                 }
             ]
         }
@@ -67,23 +70,70 @@ def pdf2json(file_path):
     json_string = json_string.replace("'", "")
     print(json_string)
     try:
-        formatted_json = json.loads(json_string)
+        formatted_json2 = json.loads(json_string)
+        # formatted_json2 = {
+        #     "invoice_number": "04/85/1345",
+        #     "date_of_issue": "04. January 2023",
+        #     "seller_info": {
+        #         "name": "PSI Services SA",
+        #         "address": "17, Rue de Flawetter - L-6775 Gravenmacher",
+        #         "phone": "+352 222 333 444",
+        #         "email": "pierre.muller@luxconglobal.lu"
+        #     },
+        #     "client_info": {
+        #         "name": "PSI Concepts SA"
+        #     },
+        #     "invoice_items_table": [
+        #         {
+        #         "position": 1,
+        #         "description": "Yearly Fee 2022",
+        #         "vat_percent": 17.00,
+        #         "net_amount": 8000.00,
+        #         "vat_amount": 1360.00,
+        #         "gross_amount": 9360.00
+        #         }
+        #     ],
+        #     "currency": "EUR"
+        # }
+        formatted_json = {
+            "client": formatted_json2["seller_info"]["name"],
+            "date": formatted_json2["date_of_issue"],
+            "brutto": formatted_json2["invoice_items_table"][0]["gross_amount"],
+            "net": formatted_json2["invoice_items_table"][0]["net_amount"],
+            "vat": formatted_json2["invoice_items_table"][0]["vat_amount"],
+            "currency": formatted_json2["currency"],
+        }
         extension = file_name.split('.')[-1]
         filename = file_name.split('/')[-1]
         formatted_json['date'] = formatted_json['date'].replace('.', '')
-        formatted_filename = formatted_json['client']+'_'+formatted_json['date']+'.'+extension
-        formatted_filename_json = formatted_json['client']+'_'+formatted_json['date']+'.json'
-        with open('Data/InvoiceData/'+formatted_filename_json, 'w') as f:
+        formatted_filename = formatted_json['client'] + '.' + extension
+        formatted_filename_json = formatted_json['client'] + '.json'
+        file_path = 'Data/InvoiceData/' + formatted_filename_json
+
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                existing_data = json.load(f)
+                if not isinstance(existing_data, list):
+                    existing_data = [existing_data]
+        else:
+            existing_data = []
+
+        existing_data.append(formatted_json)
+
+        with open(file_path, 'w') as f:
+            json.dump(existing_data, f, indent=4)
             access_token = get_access_token()
-            filepathinOneDrive = 'Attachments/'+formatted_json['client']+'/'+formatted_filename
+            filepathinOneDrive = 'Attachments/' + formatted_json['client'] + '/' + formatted_json['client'] + '_' + formatted_json['date'] + '.' + extension
             print('filename: ', filename)
             print('filepathinOneDrive: ', filepathinOneDrive)
             print('formatted_filename: ', formatted_filename)
             print('extension: ', extension)
             upload_to_onedrive(access_token, file_name, filepathinOneDrive)
-            # convert format of DD.MM.YYYY to DDMMYYYY
-            json.dump(formatted_json, f)
-            shutil.copy(file_path, 'Data/Attachments/'+formatted_json['client']+'_'+formatted_json['date']+'.'+extension)
+            # if subdirectory does not exist, create it
+            if not os.path.exists('Data/Attachments/' + formatted_json['client']):
+                os.makedirs('Data/Attachments/' + formatted_json['client'])
+                print("creating the dir!!!!")
+            shutil.copy(file_path, 'Data/' + filepathinOneDrive)    
     except json.JSONDecodeError as e:
         print("Not valid JSON format:", e)
 
